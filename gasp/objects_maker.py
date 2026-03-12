@@ -273,42 +273,42 @@ def make_objects(parameters):
     objects_dict['pool'] = pool
 
     job_specs = {}
-    if 'job_specs' in parameters:
-        job_specs = parameters['job_specs']
+    if 'JobSpecs' in parameters:
+        job_specs = parameters['JobSpecs']
 
     if 'cores' in job_specs:
         if job_specs['cores'] > 8:
-            print ('Using max. default cpus_per_task: 8')
+            print('Using max. default cpus_per_task: 8')
             job_specs['cores'] = 8
     else:
         # default cpus_per_task for a worker
         job_specs['cores'] = 1
 
-    if not 'walltime' in job_specs:
-        print ('Using default wall time of 24:00:00')
+    if 'walltime' not in job_specs:
+        print('Using default wall time of 24:00:00')
         job_specs['walltime'] = '24:00:00'
 
     if 'memory' not in job_specs:
         # default job memory for a worker
-        print ('Using default total memory of 8GB per worker')
+        print('Using default total memory of 8GB per worker')
         job_specs['memory'] = '8GB'
 
-    if not 'project' in job_specs:
-        print ('Please specify the project "#SBATCH -A" tag for worker.')
+    if 'project' not in job_specs:
+        print('Please specify the project "#SBATCH -A" tag for worker.')
         quit()
 
-    if not 'queue' in job_specs:
-        print ('Please specify the queue name to start workers in..')
-        print ('Ex: hpg2-compute\nQuitting..')
-        quit()
+    if 'queue' not in job_specs:
+        print('Specify queue option in job_specs if the SLURM/PBS cluster'
+              ' requires it. Otherwise ignore..')
 
-    if not 'interface' in job_specs:
-        print ('Using default interface \'ib0\' (infiniband nodes)')
+    if 'interface' not in job_specs:
+        print('Using default interface \'ib0\' (infiniband nodes)')
         job_specs['interface'] = 'ib0'
 
     objects_dict['job_specs'] = job_specs
 
     return objects_dict
+
 
 def get_lat_match_params(parameters):
     """
@@ -320,24 +320,25 @@ def get_lat_match_params(parameters):
 
     lat_match_params = {}
     keys = ['max_area', 'max_mismatch', 'max_angle_diff', 'r1r2_tol',
-                'separation', 'align_random', 'nlayers_substrate',
-                'nlayers_2d', 'sd_layers']
-    #all defaults
+            'separation', 'align_random', 'nlayers_substrate',
+            'nlayers_2d']
+    # all defaults
     match_constraints = [100, 0.05, 2, 0.06, 2, True, 1, 1, 1]
 
     # Set all default values to the keys
     for key, param in zip(keys, match_constraints):
         lat_match_params[key] = param
 
-    # Check if any user specied constraints are available and replace
+    # Check if any user specified constraints are available and replace
     if 'LatticeMatch' not in parameters:
-        print ('No lattice match constraints provided. Using defaults...')
+        print('No lattice match constraints provided. Using defaults...')
     else:
         for key in keys:
             if key in parameters['LatticeMatch']:
                 lat_match_params[key] = parameters['LatticeMatch'][key]
 
     return lat_match_params
+
 
 def get_substrate_params(parameters):
     """
@@ -348,17 +349,10 @@ def get_substrate_params(parameters):
     """
     if 'Substrate' in parameters:
         sub_params = parameters['Substrate']
-        # A, B, C are species in film only
-        # Atleast should provide mu_A assuming only one species
-        #if 'mu_B' not in sub_params:
-        #    sub_params['mu_B'] = 0
-        #if 'mu_C' not in sub_params:
-        #    sub_params['mu_C'] = 0
-        #if 'no_z' not in sub_params:
-        #        sub_params['no_z'] = False
         return sub_params
     else:
         return None
+
 
 def make_organism_creators(parameters, composition_space, constraints):
     """
@@ -380,7 +374,6 @@ def make_organism_creators(parameters, composition_space, constraints):
     # make the specified creators
     else:
         # check that at least one valid option is used
-        # TODO: if other organism creators are used, check them here as well
         if 'random' not in parameters['InitialPopulation'] and 'from_files' \
                 not in parameters['InitialPopulation']:
             print('At least one valid option for making structures for the '
@@ -410,13 +403,11 @@ def make_organism_creators(parameters, composition_space, constraints):
                       'structures.')
                 print('Quitting...')
                 quit()
-        # if nothing is given after the from_files keyword
         elif parameters['InitialPopulation']['from_files'] is None:
             print('The path to the folder containing the files must be '
                   'provided. Please use the "path_to_folder" keyword.')
             print('Quitting...')
             quit()
-        # if path_to_folder keyword is not given
         elif 'path_to_folder' not in parameters['InitialPopulation'][
                 'from_files']:
             print('Incorrect keyword given after "from_files" in the '
@@ -426,21 +417,18 @@ def make_organism_creators(parameters, composition_space, constraints):
             quit()
         else:
             given_path = parameters['InitialPopulation']['from_files'][
-                    'path_to_folder']
-            # if no path was given after path_to_folder keyword
+                'path_to_folder']
             if given_path is None:
                 print('The path to the folder containing the files for the '
                       'initial population must be provided. Please give the '
                       'path after the "path_to_folder" keyword.')
                 print('Quitting...')
                 quit()
-            # if the given path does not exist
             elif not os.path.exists(given_path):
                 print('The given folder containing structures for the initial '
                       'population does not exist.')
                 print('Quitting...')
                 quit()
-            # if the folder exists, check that it contains files
             elif len([f for f in os.listdir(given_path) if
                       os.path.isfile(os.path.join(given_path, f))]) == 0:
                 print('The given folder containing structures for the initial '
@@ -450,17 +438,80 @@ def make_organism_creators(parameters, composition_space, constraints):
             else:
                 files_organism_creator = organism_creators.FileOrganismCreator(
                     given_path)
+
                 # check that the files cover all composition space endpoints
                 if composition_space.objective_function == 'pd':
                     cells = files_organism_creator.get_cells()
+
+                    print("\n===== DEBUG: endpoint coverage check =====")
+                    print("given_path =", given_path)
+                    print("num parsed cells =", len(cells))
+                    print("composition_space.objective_function =",
+                          composition_space.objective_function)
+
+                    print("\nFiles found in folder:")
+                    try:
+                        for fname in sorted(os.listdir(given_path)):
+                            full = os.path.join(given_path, fname)
+                            print("  {!r} | isfile={} | size={}".format(
+                                fname,
+                                os.path.isfile(full),
+                                os.path.getsize(full) if os.path.isfile(full) else "NA"
+                            ))
+                    except Exception as e:
+                        print("  Could not list folder contents:", repr(e))
+
+                    print("\nExpected endpoints:")
+                    for i, endpoint in enumerate(composition_space.endpoints):
+                        try:
+                            print("  endpoint[{}] = {} | reduced = {}".format(
+                                i, endpoint, endpoint.reduced_composition))
+                        except Exception as e:
+                            print("  endpoint[{}] could not print: {}".format(
+                                i, repr(e)))
+
+                    print("\nParsed cells:")
+                    for i, cell in enumerate(cells):
+                        try:
+                            print("  cell[{}] formula = {} | reduced = {}".format(
+                                i,
+                                cell.composition.formula,
+                                cell.composition.reduced_composition))
+                        except Exception as e:
+                            print("  cell[{}] could not print: {}".format(
+                                i, repr(e)))
+
                     provided_endpoints = []
                     for endpoint in composition_space.endpoints:
                         for cell in cells:
-                            if cell.composition.reduced_composition.almost_equals(
-                                    endpoint.reduced_composition) and \
-                                    endpoint not in provided_endpoints:
+                            try:
+                                is_match = cell.composition.reduced_composition.almost_equals(
+                                    endpoint.reduced_composition)
+                            except Exception as e:
+                                print("  MATCH CHECK FAILED for cell {} and endpoint {}: {}".format(
+                                    getattr(cell.composition, "formula", "UNKNOWN"),
+                                    endpoint,
+                                    repr(e)))
+                                is_match = False
+
+                            if is_match and endpoint not in provided_endpoints:
+                                print("MATCH: cell {} matches endpoint {}".format(
+                                    cell.composition.reduced_composition,
+                                    endpoint.reduced_composition))
                                 provided_endpoints.append(endpoint)
-                    # check if we got them all
+
+                    print("\nProvided endpoints:")
+                    if len(provided_endpoints) == 0:
+                        print("  NONE")
+                    else:
+                        for ep in provided_endpoints:
+                            try:
+                                print(" ", ep, "| reduced =", ep.reduced_composition)
+                            except Exception as e:
+                                print("  could not print provided endpoint:", repr(e))
+
+                    print("===== END DEBUG =====\n")
+
                     for endpoint in composition_space.endpoints:
                         if endpoint not in provided_endpoints:
                             print('Error: valid structure files not provided '
@@ -468,10 +519,8 @@ def make_organism_creators(parameters, composition_space, constraints):
                                   'endpoints of the composition space.')
                             print('Quitting...')
                             quit()
-                initial_organism_creators.append(files_organism_creator)
 
-        # TODO: if other organism creators are used, they should be
-        # instantiated here
+                initial_organism_creators.append(files_organism_creator)
 
         return initial_organism_creators
 
@@ -487,14 +536,14 @@ def make_default_organism_creator(composition_space, constraints):
     """
 
     if composition_space.objective_function == 'pd':
-            print('For phase diagram searches, reference structures at each '
-                  'endpoint of the composition space must be provided in the '
-                  'initial population.')
-            print('Please use the "from_files" keyword in the '
-                  'InitialPopulation block to provide the reference '
-                  'structures.')
-            print('Quitting...')
-            quit()
+        print('For phase diagram searches, reference structures at each '
+              'endpoint of the composition space must be provided in the '
+              'initial population.')
+        print('Please use the "from_files" keyword in the '
+              'InitialPopulation block to provide the reference '
+              'structures.')
+        print('Quitting...')
+        quit()
     else:
         random_organism_creator = organism_creators.RandomOrganismCreator(
             'default', composition_space, constraints)
@@ -525,13 +574,10 @@ def make_energy_calculator(parameters, geometry, composition_space):
               'keyword.')
         print('Quitting...')
         quit()
-    # for GULP
     elif 'gulp' in parameters['EnergyCode']:
         return make_gulp_energy_calculator(parameters, geometry)
-    # for LAMMPS
     elif 'lammps' in parameters['EnergyCode']:
         return make_lammps_energy_calculator(parameters, geometry)
-    # for VASP
     elif 'vasp' in parameters['EnergyCode']:
         return make_vasp_energy_calculator(parameters, composition_space,
                                            geometry)
@@ -544,12 +590,6 @@ def make_energy_calculator(parameters, geometry, composition_space):
 def make_gulp_energy_calculator(parameters, geometry):
     """
     Returns a GulpEnergyCalculator object, or quits if one cannot be made.
-
-    Args:
-        parameters: the dictionary produced by calling yaml.load() on the input
-            file
-
-        geometry: the Geometry for the search
     """
 
     if parameters['EnergyCode']['gulp'] is None:
@@ -558,7 +598,6 @@ def make_gulp_energy_calculator(parameters, geometry):
         print('Quitting...')
         quit()
     else:
-        # get the header file
         if 'header_file' not in parameters['EnergyCode']['gulp']:
             print('A GULP header file must be provided. Please use the '
                   '"header_file" keyword.')
@@ -570,15 +609,13 @@ def make_gulp_energy_calculator(parameters, geometry):
             print('Quitting...')
             quit()
         else:
-            # get the path to the header file
             header_file_path = parameters['EnergyCode']['gulp'][
                 'header_file']
-            # check that the header file exists
             if not os.path.exists(header_file_path):
                 print('The given GULP header file does not exist.')
                 print('Quitting...')
                 quit()
-        # get the potential file
+
         if 'potential_file' not in parameters['EnergyCode']['gulp']:
             print('A GULP potential file must be provided. Please use the '
                   '"potential_file" keyword.')
@@ -590,10 +627,8 @@ def make_gulp_energy_calculator(parameters, geometry):
             print('Quitting...')
             quit()
         else:
-            # get the path to the potential file
             potential_file_path = parameters['EnergyCode']['gulp'][
                 'potential_file']
-            # check that the potential file exists
             if not os.path.exists(potential_file_path):
                 print('The given GULP potential file does not exist.')
                 print('Quitting...')
@@ -606,12 +641,6 @@ def make_gulp_energy_calculator(parameters, geometry):
 def make_lammps_energy_calculator(parameters, geometry):
     """
     Returns a LammpsEnergyCalculator object, or quits if one cannot be made.
-
-    Args:
-        parameters: the dictionary produced by calling yaml.load() on the input
-            file
-
-        geometry: the Geometry for the search
     """
 
     if parameters['EnergyCode']['lammps'] is None:
@@ -620,7 +649,6 @@ def make_lammps_energy_calculator(parameters, geometry):
         print('Quitting...')
         quit()
     else:
-        # get the input script
         if 'input_script' not in parameters['EnergyCode']['lammps']:
             print('A LAMMPS input script must be provided. Please use the '
                   '"header_file" keyword.')
@@ -632,30 +660,20 @@ def make_lammps_energy_calculator(parameters, geometry):
             print('Quitting...')
             quit()
         else:
-            # get the path to the input script
             input_script_path = parameters['EnergyCode']['lammps'][
                 'input_script']
-            # check that the input script exists
             if not os.path.exists(input_script_path):
                 print('The given LAMMPS input script does not exist.')
                 print('Quitting...')
                 quit()
 
         return energy_calculators.LammpsEnergyCalculator(
-                input_script_path, geometry)
+            input_script_path, geometry)
 
 
 def make_vasp_energy_calculator(parameters, composition_space, geometry):
     """
     Returns a VaspEnergyCalculator object, or quits if one cannot be made.
-
-    Args:
-        parameters: the dictionary produced by calling yaml.load() on the input
-            file
-
-        composition_space: the CompositionSpace of the search
-
-        geometry: the Geometry for the search
     """
 
     if parameters['EnergyCode']['vasp'] is None:
@@ -663,7 +681,6 @@ def make_vasp_energy_calculator(parameters, composition_space, geometry):
         print('Quitting...')
         quit()
     else:
-        # the INCAR file
         if 'incar' not in parameters['EnergyCode']['vasp']:
             print('An INCAR file must be provided. Please use the "incar" '
                   'keyword.')
@@ -675,14 +692,12 @@ def make_vasp_energy_calculator(parameters, composition_space, geometry):
             print('Quitting...')
             quit()
         else:
-            # get the path to the INCAR file
             incar_path = parameters['EnergyCode']['vasp']['incar']
-            # check that the INCAR file exists
             if not os.path.exists(incar_path):
                 print('The given INCAR file does not exist.')
                 print('Quitting...')
                 quit()
-        # the KPOINTS file
+
         if 'kpoints' not in parameters['EnergyCode']['vasp']:
             print('A KPOINTS file must be provided. Please use the '
                   '"kpoints" keyword.')
@@ -694,14 +709,12 @@ def make_vasp_energy_calculator(parameters, composition_space, geometry):
             print('Quitting...')
             quit()
         else:
-            # get the path to the KPOINTS file
             kpoints_path = parameters['EnergyCode']['vasp']['kpoints']
-            # check that the KPOINTS file exists
             if not os.path.exists(kpoints_path):
                 print('The given KPOINTS file does not exist.')
                 print('Quitting...')
                 quit()
-        # the POTCAR files
+
         if 'potcars' not in parameters['EnergyCode']['vasp']:
             print('POTCAR file(s) must be provided. Please use the '
                   '"potcars" keyword.')
@@ -713,9 +726,7 @@ def make_vasp_energy_calculator(parameters, composition_space, geometry):
             print('Quitting...')
             quit()
         else:
-            # get the the paths to the POTCAR files of each element
             potcar_paths = parameters['EnergyCode']['vasp']['potcars']
-            # check that enough POTCAR files have been provided
             elements_list = composition_space.get_all_elements()
             if len(potcar_paths) < len(elements_list):
                 print('Not enough POTCAR files provided - one must be '
@@ -723,16 +734,12 @@ def make_vasp_energy_calculator(parameters, composition_space, geometry):
                       'Please provide them.')
                 print('Quitting...')
                 quit()
-            # check that each element has been specified below the
-            # 'potcars' keyword
             for element in elements_list:
                 if element.symbol not in potcar_paths:
                     print('No POTCAR file given for {}. Please provide '
                           'one.'.format(element.symbol))
                     print('Quitting...')
                     quit()
-            # for each element, check that a POTCAR file has been given and
-            # that it exists
             for key in potcar_paths:
                 if potcar_paths[key] is None:
                     print('No POTCAR file given for {}. Please provide '
@@ -745,50 +752,44 @@ def make_vasp_energy_calculator(parameters, composition_space, geometry):
                     print('Quitting...')
                     quit()
 
-        # check if num_submits_to_converge is provided
         if 'num_submits_to_converge' in \
-                    parameters['EnergyCode']['vasp']:
+                parameters['EnergyCode']['vasp']:
             num_submits_to_converge = \
-             parameters['EnergyCode']['vasp']['num_submits_to_converge']
+                parameters['EnergyCode']['vasp']['num_submits_to_converge']
             if not isinstance(num_submits_to_converge, int):
-                print ('Error: Parameter num_submits_to_converge '
-                                            'should be an integer.')
-                print ('Quitting...')
+                print('Error: Parameter num_submits_to_converge '
+                      'should be an integer.')
+                print('Quitting...')
                 quit()
         else:
-            print ('No "num_submits_to_converge" option given. '
-                   'Using default maximum value of 2 VASP'
-                   ' calculations done on an organism to converge.')
+            print('No "num_submits_to_converge" option given. '
+                  'Using default maximum value of 2 VASP'
+                  ' calculations done on an organism to converge.')
             num_submits_to_converge = 2
-        # check if num_rerelax is provided
+
         num_rerelax = 0
         if 'num_rerelax' in parameters['EnergyCode']['vasp']:
             num_rerelax = parameters['EnergyCode']['vasp']['num_rerelax']
             if not isinstance(num_rerelax, int):
-                print ('Error: Parameter num_rerelax should be an integer.')
-                print ('Quitting...')
+                print('Error: Parameter num_rerelax should be an integer.')
+                print('Quitting...')
                 quit()
 
-        print ('VASP calculations on a structure: \n'
-               'for energy convergence: {}  and\n'
-               'for (re-)relaxation: {}'.format(num_submits_to_converge, num_rerelax))
+        print('VASP calculations on a structure: \n'
+              'for energy convergence: {}  and\n'
+              'for (re-)relaxation: {}'.format(
+                  num_submits_to_converge, num_rerelax))
 
         return energy_calculators.VaspEnergyCalculator(
-                    incar_path, kpoints_path,
-                    potcar_paths, geometry,
-                    num_submits_to_converge=num_submits_to_converge,
-                    num_rerelax=num_rerelax)
+            incar_path, kpoints_path,
+            potcar_paths, geometry,
+            num_submits_to_converge=num_submits_to_converge,
+            num_rerelax=num_rerelax)
 
 
 def make_stopping_criteria(parameters, composition_space):
     """
     Returns a StoppingCriteria object.
-
-    Args:
-        parameters: the dictionary produced by calling yaml.load() on the input
-            file
-
-        composition_space: the CompositionSpace of the search
     """
 
     if 'StoppingCriteria' not in parameters:
@@ -801,14 +802,12 @@ def make_stopping_criteria(parameters, composition_space):
             return general.StoppingCriteria(parameters['StoppingCriteria'],
                                             composition_space)
         else:
-            # check that the file exists
             given_path = parameters['StoppingCriteria']['found_structure']
             if not os.path.exists(given_path):
                 print('The file containing the structure to find does not '
                       'exist.')
                 print('Quitting...')
                 quit()
-            # check that the file has the correct suffix or prefix
             elif not (os.path.basename(given_path).endswith('.cif') or
                       os.path.basename(given_path).startswith('POSCAR.')):
                 print('File containing structure to find must be in POSCAR or '
@@ -816,7 +815,6 @@ def make_stopping_criteria(parameters, composition_space):
                       'respectively.')
                 print('Quitting...')
                 quit()
-            # check that file can be read properly
             else:
                 try:
                     Structure.from_file(given_path)
@@ -835,18 +833,6 @@ def make_stopping_criteria(parameters, composition_space):
 def make_variations(parameters, default_fractions, composition_space):
     """
     Creates the variations, using default parameter values if needed.
-
-    Returns a list containing the variation objects (Mating, StructureMut,
-    NumAtomssMut and Permutation).
-
-    Args:
-        parameters: the dictionary produced by calling yaml.load() on the input
-            file
-
-        default_fractions: a dictionary containing the default fractions to use
-             for each variation
-
-        composition_space: the CompositionSpace of the search
     """
 
     if 'Variations' not in parameters:
@@ -855,7 +841,7 @@ def make_variations(parameters, default_fractions, composition_space):
         return make_default_variations(default_fractions, composition_space)
     else:
         variations_list = []
-        # mating
+
         if 'Mating' not in parameters['Variations']:
             pass
         elif parameters['Variations']['Mating'] is None:
@@ -875,7 +861,6 @@ def make_variations(parameters, default_fractions, composition_space):
                 mating = variations.Mating(parameters['Variations']['Mating'])
                 variations_list.append(mating)
 
-        # structure mutation
         if 'StructureMut' not in parameters['Variations']:
             pass
         elif parameters['Variations']['StructureMut'] is None:
@@ -896,7 +881,6 @@ def make_variations(parameters, default_fractions, composition_space):
                     parameters['Variations']['StructureMut'])
                 variations_list.append(structure_mut)
 
-        # mutating the number of atoms in the cell
         if 'NumAtomsMut' not in parameters['Variations']:
             pass
         elif parameters['Variations']['NumAtomsMut'] is None:
@@ -917,7 +901,6 @@ def make_variations(parameters, default_fractions, composition_space):
                     parameters['Variations']['NumAtomsMut'])
                 variations_list.append(num_atoms_mut)
 
-        # permutation (swapping atoms)
         if 'Permutation' not in parameters['Variations']:
             pass
         elif parameters['Variations']['Permutation'] is None:
@@ -944,26 +927,17 @@ def make_default_variations(default_fractions, composition_space):
     """
     Creates the variations with default parameter values and the provided
     default fractions.
-
-    Returns a list containing the variation objects (Mating, StructureMut,
-    NumAtomsMut and Permutation).
-
-    Args:
-        default_fractions: a dictionary containing the default fractions to use
-             for each variation
-
-        composition_space: the CompositionSpace of the search
     """
 
     variations_list = []
     mating = variations.Mating({'fraction': default_fractions['mating']})
     structure_mut = variations.StructureMut(
-                {'fraction': default_fractions['structure_mut']})
+        {'fraction': default_fractions['structure_mut']})
     num_atoms_mut = variations.NumAtomsMut(
-                {'fraction': default_fractions['num_atoms_mut']})
+        {'fraction': default_fractions['num_atoms_mut']})
     permutation = variations.Permutation(
-                {'fraction': default_fractions['permutation']},
-                composition_space)
+        {'fraction': default_fractions['permutation']},
+        composition_space)
     variations_list.append(mating)
     variations_list.append(structure_mut)
     variations_list.append(num_atoms_mut)
