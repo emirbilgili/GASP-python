@@ -139,13 +139,16 @@ def main():
         import dask.config
         dask.config.set({'distributed.comm.timeouts.tcp': '3h'})
 
-        cluster_job = SLURMCluster(cores=job_specs['cores'],
-                                memory=job_specs['memory'],
-                                project=job_specs['project'],
-                                queue=job_specs['queue'],
-                                interface=job_specs['interface'],
-                                walltime=job_specs['walltime'],
-                                job_extra=job_specs['job_extra_directives'])
+        cluster_kwargs = dict(cores=job_specs['cores'],
+                              memory=job_specs['memory'],
+                              project=job_specs['project'],
+                              queue=job_specs['queue'],
+                              interface=job_specs['interface'],
+                              walltime=job_specs['walltime'],
+                              job_extra=job_specs['job_extra_directives'])
+        if 'processes' in job_specs:
+            cluster_kwargs['processes'] = job_specs['processes']
+        cluster_job = SLURMCluster(**cluster_kwargs)
         cluster_job.scale(num_calcs_at_once)  # number of parallel jobs
         client  = Client(cluster_job)
         print("\nCluster Job:")
