@@ -23,10 +23,13 @@ from pymatgen.core.lattice import Lattice
 from pymatgen.core.composition import Composition
 
 from fractions import Fraction
+import logging
 import warnings
 import os
 import math
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class RandomOrganismCreator(object):
@@ -216,7 +219,9 @@ class RandomOrganismCreator(object):
         # get a list of species for the random organism
         species = self.get_species_list(composition_space, constraints, random)
         if species is None:  # could happen for pd searches...
+            logger.debug('RandomOrganismCreator: get_species_list returned None, skipping organism')
             return None
+        logger.debug('RandomOrganismCreator: species list = %s', [str(s) for s in species])
 
         # for each specie, generate a set of random fractional coordinates
         random_coordinates = []
@@ -229,11 +234,14 @@ class RandomOrganismCreator(object):
 
         # optionally scale the volume of the random structure
         if not self.scale_volume(random_cell):
+            logger.debug('RandomOrganismCreator: scale_volume failed (nan or a>100), returning None')
             return None  # sometimes pymatgen's scaling algorithm crashes
 
         # make the random organism
         random_org = Organism(random_cell, id_generator, self.name,
                               composition_space)
+        logger.debug('RandomOrganismCreator: created organism %d composition=%s vol=%.3f',
+                     random_org.id, str(random_cell.composition), random_cell.lattice.volume)
         print('Random organism creator making organism {} '.format(
             random_org.id))
         return random_org
@@ -565,8 +573,12 @@ class RandomOrganismCreator(object):
             random_cell.scale_lattice(total_volume)
             if str(random_cell.lattice.a) == 'nan' or \
                     random_cell.lattice.a > 100:
+                logger.debug('scale_volume: invalid lattice after scaling (a=%s), returning False',
+                             random_cell.lattice.a)
                 return False
             else:
+                logger.debug('scale_volume: scaled to total_volume=%.3f (a=%.3f)',
+                             total_volume, random_cell.lattice.a)
                 return True
 
     def update_status(self):
@@ -631,26 +643,23 @@ class FileOrganismCreator(object):
             it is. Maybe there's a better way to deal with this...
         """
 
-        if self.files[self.num_made - 1].endswith('.cif') or self.files[
-                self.num_made - 1].startswith('POSCAR'):
-            try:
-                new_cell = Cell.from_file(
-                    str(self.path_to_folder) + '/' + str(
-                        self.files[self.num_made - 1]))
-                new_org = Organism(new_cell, id_generator, self.name,
-                                   composition_space)
-                print('Making organism {} from file: {} '.format(
-                    new_org.id, self.files[self.num_made - 1]))
-                self.update_status()
-                return new_org
-            except:
-                print('Error reading structure from file: {} '.format(
+        if not self.files[self.num_made - 1].endswith('.cif') and not \
+                self.files[self.num_made - 1].startswith('POSCAR'):
+            print('File {} does not end with .cif or begin with POSCAR - '
+                  'assuming POSCAR format'.format(self.files[self.num_made - 1]))
+        try:
+            new_cell = Cell.from_file(
+                str(self.path_to_folder) + '/' + str(
                     self.files[self.num_made - 1]))
-                self.update_status()
-                return None
-        else:
-            print('File {} has invalid extension - file must end with .cif or '
-                  'begin with POSCAR '.format(self.files[self.num_made - 1]))
+            new_org = Organism(new_cell, id_generator, self.name,
+                               composition_space)
+            print('Making organism {} from file: {} '.format(
+                new_org.id, self.files[self.num_made - 1]))
+            self.update_status()
+            return new_org
+        except:
+            print('Error reading structure from file: {} '.format(
+                self.files[self.num_made - 1]))
             self.update_status()
             return None
 
@@ -666,14 +675,12 @@ class FileOrganismCreator(object):
 
         file_cells = []
         for cell_file in self.files:
-            if cell_file.endswith('.cif') or cell_file.startswith(
-                    'POSCAR'):
-                try:
-                    new_cell = Cell.from_file(
-                        str(self.path_to_folder) + "/" + str(cell_file))
-                    file_cells.append(new_cell)
-                except:
-                    pass
+            try:
+                new_cell = Cell.from_file(
+                    str(self.path_to_folder) + "/" + str(cell_file))
+                file_cells.append(new_cell)
+            except:
+                pass
         return file_cells
 
     def update_status(self):
